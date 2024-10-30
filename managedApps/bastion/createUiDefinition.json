@@ -1,0 +1,140 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "config": {
+      "isWizard": true,
+      "basics": {
+        "description": "This Managed Application will deploy a **temporary** Bastion host. This Bastion host will be destroyed after the configured period.",
+        "location": {
+          "label": "Region",
+          "toolTip": "Region where the Bastion will be deployed",
+          "resourceTypes": [
+            "Microsoft.Compute/virtualMachines"
+          ],
+          "allowedValues": [
+            "swedencentral"
+          ],
+          "visible": true
+        }
+      }
+    },
+    "basics": [
+      {}
+    ],
+    "steps": [
+      {
+        "name": "deploymentSettings",
+        "label": "Bastion Deployment Settings",
+        "elements": [
+          {
+            "name": "networkSettings",
+            "type": "Microsoft.Common.Section",
+            "label": "Network Settings",
+            "elements": [
+              {
+                "name": "vnetSelector",
+                "type": "Microsoft.Solutions.ResourceSelector",
+                "label": "Select Vnet",
+                "resourceType": "Microsoft.Network/virtualNetworks",
+                "toolTip": "Select the Vnet where the Bastion will be deployed",
+                "options": {
+                  "filter": {
+                    "subscription": "onBasics",
+                    "location": "onBasics"
+                  }
+                },
+                "constraints": {
+                  "required": true
+                }
+              },
+              {
+                "name": "subnets",
+                "type": "Microsoft.Solutions.ArmApiControl",
+                "request": {
+                  "method": "GET",
+                  "path": "[concat(subscription().id, '/resourceGroups/', last(take(split(steps('deploymentSettings').networkSettings.vnetSelector.id, '/'), 5)), '/providers/Microsoft.Network/virtualNetworks/', steps('deploymentSettings').networkSettings.vnetSelector.name,'/subnets?api-version=2022-01-01')]"
+                }
+              },
+              {
+                "name": "subnetSelector",
+                "type": "Microsoft.Common.DropDown",
+                "toolTip": "Select the subnet where the Bastion will be deployed",
+                "label": "Subnet",
+                "filter": true,
+                "constraints": {
+                  "allowedValues": "[map(steps('deploymentSettings').networkSettings.subnets.value, (item) => parse(concat('{\"label\":\"', item.name, '\",\"value\":\"', item.id, '\"}')))]",
+                  "required": true
+                },
+                "visible": true
+              }
+            ]
+          },
+          {
+            "name": "terminationSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Automatic Termination",
+            "elements": [
+              {
+                "name": "hoursAmount",
+                "type": "Microsoft.Common.Slider",
+                "min": 1,
+                "max": 24,
+                "label": "Hours until termination",
+                "subLabel": "hours",
+                "defaultValue": 24,
+                "showStepMarkers": true,
+                "toolTip": "Pick the amount of hours the Bastion will be provisioned",
+                "constraints": {
+                  "required": true
+                },
+                "visible": true
+              }
+            ],
+            "visible": true
+          },
+          {
+            "name": "authSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Authentication",
+            "elements": [
+              {
+                "name": "credentialsCombo",
+                "type": "Microsoft.Compute.CredentialsCombo",
+                "label": {
+                  "authenticationType": "Authentication type",
+                  "password": "Password",
+                  "confirmPassword": "Confirm password",
+                  "sshPublicKey": "SSH public key"
+                },
+                "toolTip": {
+                  "authenticationType": "Auth type",
+                  "password": "Password",
+                  "sshPublicKey": "Pubkey"
+                },
+                "constraints": {
+                  "required": true
+                },
+                "options": {
+                  "hideConfirmation": false,
+                  "hidePassword": true
+                },
+                "osPlatform": "Linux",
+                "visible": true
+              }
+            ],
+            "visible": true
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "location": "[location()]",
+      "existingSubnetName": "[steps('deploymentSettings').networkSettings.subnetSelector]",
+      "sshKeyName": "[steps('deploymentSettings').authSection.credentialsCombo.sshKeyName]",
+      "sshPublicKey": "[steps('deploymentSettings').authSection.credentialsCombo.sshPublicKey]",
+      "generateNewSshKey": "[steps('deploymentSettings').authSection.credentialsCombo.generateNewSshKey]"      
+    }
+  }
+}
